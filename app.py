@@ -1,8 +1,8 @@
 #!flask/bin/python
 from flask import Flask, jsonify, make_response, request, abort, g, url_for
 from flask_httpauth import HTTPBasicAuth
-from models import (db, User, Bucketlist, Item, user_schema, users_schema, 
-                    bucketlist_schema, bucketlists_schema)
+from models import (db, User, Bucketlist, Item, bucketlists_schema,
+                    items_schema)
 from datetime import datetime
 
 # initialization
@@ -152,81 +152,94 @@ def delete_bucketlist(bucketlist_id):
     if len(result[0]) == 0:
                 abort(404)  # Abort incase bucketlist does not exist.
     bucketlist.delete()
-    db.session.commit()           
+    db.session.commit()
     return jsonify({'result': True})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/', methods=['POST'])
+@auth.login_required
 def create_bucketlist_item(bucketlist_id):
-    '''A method to create a new bucketlist
+    '''A method to create a new bucketlist item
         args:
-            bucketlist_id The id of the bucketlist you want to add an item.
+            bucketlist_id The id of the bucketlist you want to add an item to.
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    bucketlist_items = bucketlist[0]['items']
-    if not request.json or not 'item_name' in request.json:
-                abort(400)
-    item = {
-        'id': bucketlist_items[-1]['id'] + 1,
-        'name': request.json.get('item_name', ""),
-        'date_created': request.json.get('item_date_created', ""),
-        'date_modified': request.json.get('item_date_modified', ""),
-        'done': request.json.get('done', False)}
-    bucketlist_items.append(item)
-    return jsonify({'bucketlist': bucketlist}), 201
+
+    if not request.json or not 'name' in request.json:
+                abort(400)  # No name provided in the request
+
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
+                abort(404)  # For a non existent bucketlist
+
+    item_name = request.json.get('name')
+    bucketlist_id = bucketlist_id
+    date_created = datetime.utcnow()
+    date_modified = datetime.utcnow()
+    item = Item(
+        name=item_name, date_created=date_created, date_modified=date_modified,
+        bucketlist_id=bucketlist_id, done=False)
+    db.session.add(item)
+    db.session.commit()
+
+    updated_bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)
+    result = bucketlists_schema.dump(updated_bucketlist)
+    if len(result[0]) == 0:
+                abort(404)  # Non-existent bucketlist
+    return jsonify({'bucketlist': result.data})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/<int:item_id>', methods=['PUT'])
+@auth.login_required
 def update_bucketlist_item(bucketlist_id, item_id):
     '''A method to update bucketlist items
         args:
             bucketlist_id The bucketlist containing the item to edit.
             item_id The item to update in the bucketlist
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    bucketlist_item = bucketlist[0]['items'][item_id - 1]
-    if len(bucketlist_item) == 0:
-        abort(404)
+    item = Item.query.filter_by(
+        id=item_id, bucketlist_id=bucketlist_id)
+    result = items_schema.dump(item)
+    if len(result[0]) == 0:
+                abort(404)  # Abort incase bucketlist does not exist.
     if not request.json:
-        abort(400)
+        abort(400)  # If a user sends anything other than Json
     if 'name' in request.json and type(request.json['name']) != str:
-        abort(400)
+        abort(400)  # Abort incase user does not send a valid name for item.
     if 'done' in request.json and type(request.json['done']) is not bool:
-        abort(400)
-    if 'date_created' in request.json and type(request.json['date_created']) is not str:
-        abort(400)
-    if 'date_modified' in request.json and type(request.json['date_modified']) is not str:
-        abort(400)
-    bucketlist_item['name'] = request.json.get('name', bucketlist_item['name'])
-    bucketlist_item['date_created'] = request.json.get(
-        'date_created', bucketlist_item['date_created'])
-    bucketlist_item['date_modified'] = request.json.get(
-        'date_modified', bucketlist_item['date_modified'])
-    bucketlist_item['done'] = request.json.get(
-        'done', bucketlist_item['done'])
+        abort(400)  # Abort incase user does not send a valid bolean for done
 
-    return jsonify({'bucketlist': bucketlist[0]})
+    name = request.json.get('name')
+    done = request.json.get('done')
+    date_modified = datetime.utcnow()
+    updateditem = {"name": name, "date_modified": date_modified, "done": done}
+    item.update(updateditem)
+    db.session.commit()
+
+    updated_bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)  # Get the updated bucketlist
+    new_result = bucketlists_schema.dump(updated_bucketlist)
+    return jsonify({'bucketlist': new_result.data})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/<int:item_id>', methods=['DELETE'])
+@auth.login_required
 def delete_bucketlist_item(bucketlist_id, item_id):
     '''A method to delete a bucketlist item
         args:
             bucketlist_id The id of bucketlist containing item to delete.
             item_id The id of the item to delete.
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    bucketlist_items = bucketlist[0]['items']
-    bucketlist_item = bucketlist[0]['items'][item_id-1]
-    if len(bucketlist_item) == 0:
-        abort(404)
-    bucketlist_items.remove(bucketlist_item)
+    item = Item.query.filter_by(
+        id=item_id, bucketlist_id=bucketlist_id)
+    result = items_schema.dump(item)
+    if len(result[0]) == 0:
+                abort(404)  # Abort incase bucketlist does not exist.
+    item.delete()
+    db.session.commit()
+
     return jsonify({'result': True})
 
 
@@ -234,6 +247,7 @@ def delete_bucketlist_item(bucketlist_id, item_id):
 def not_found(error):
     '''Return Error as a Json File'''
     return make_response(jsonify({'error': 'Not found'}), 404)
+
 
 if __name__ == '__main__':
         app.run(debug=True)
