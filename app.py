@@ -1,9 +1,8 @@
 #!flask/bin/python
 from flask import Flask, jsonify, make_response, request, abort, g, url_for
 from flask_httpauth import HTTPBasicAuth
-from models import (
-                     db, User, Bucketlist, Item, user_schema, users_schema, 
-                     bucketlist_schema, bucketlists_schema)
+from models import (db, User, Bucketlist, Item, user_schema, users_schema, 
+                    bucketlist_schema, bucketlists_schema)
 from datetime import datetime
 
 # initialization
@@ -112,41 +111,32 @@ def get_bucketlist(bucketlist_id):
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['PUT'])
+@auth.login_required
 def update_bucketlist(bucketlist_id):
     '''A method to update bucketlist details
         args:
             bucketlist_id The id of the bucketlist to update.
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    if len(bucketlist) == 0:
-        abort(404)
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
+                abort(404)  # Abort incase bucketlist does not exist.
     if not request.json:
-        abort(400)
+        abort(400)  # If a user sends anything other than Json
     if 'name' in request.json and type(request.json['name']) != str:
-        abort(400)
-    if 'items' in request.json and type(request.json['items']) is not str:
-        abort(400)
-    if 'date_created' in request.json and type(
-            request.json['date_created']) is not str:
-        abort(400)
-    if 'date_modified' in request.json and type(
-            request.json['date_modified']) is not str:
-        abort(400)
-    if 'created_by' in request.json and type(
-            request.json['created_by']) is not str:
-        abort(400)
-    bucketlist[0]['name'] = request.json.get('name', bucketlist[0]['name'])
-    bucketlist[0]['items'] = request.json.get('items', bucketlist[0]['items'])
-    bucketlist[0]['date_created'] = request.json.get(
-        'date_created', bucketlist[0]['date_created'])
-    bucketlist[0]['date_modified'] = request.json.get(
-        'date_modified', bucketlist[0]['date_modified'])
-    bucketlist[0]['created_by'] = request.json.get(
-        'created_by', bucketlist[0]['created_by'])
+        abort(400)  # Abort incase user does not send a new name for item.
+    name = request.json.get('name')
+    date_modified = datetime.utcnow()
+    bucketlistnew = {"name": name, "date_modified": date_modified}
+    bucketlist.update(bucketlistnew)
+    db.session.commit()
 
-    return jsonify({'bucketlist': bucketlist[0]})
+    updated_bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)  # Get the updated bucketlist
+    new_result = bucketlists_schema.dump(updated_bucketlist)
+
+    return jsonify({'bucketlist': new_result.data})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['DELETE'])
