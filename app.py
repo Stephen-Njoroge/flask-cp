@@ -140,17 +140,19 @@ def update_bucketlist(bucketlist_id):
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['DELETE'])
+@auth.login_required
 def delete_bucketlist(bucketlist_id):
     '''Delete a bucketlist
         args:
             bucketlist_id The id of the bucketlist to delete.
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    if len(bucketlist) == 0:
-        abort(404)
-    bucketlist.remove(bucketlist[0])
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
+                abort(404)  # Abort incase bucketlist does not exist.
+    bucketlist.delete()
+    db.session.commit()           
     return jsonify({'result': True})
 
 
