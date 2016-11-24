@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from passlib.apps import custom_app_context as pwd_context
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
+from sqlalchemy.exc import IntegrityError
+from marshmallow import Schema, fields, ValidationError, pre_load
 
 # initialization
 app = Flask(__name__)
@@ -62,14 +64,45 @@ class Bucketlist(db.Model):
     user = db.relationship("User", backref=db.backref("users", lazy="dynamic"))
     items = db.relationship("Item", backref=db.backref("bucketlists"))
 
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class Item(db.Model):
     '''Method to create tables for the items'''
     __tablename__ = 'items'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=False)
-    description = db.Column(db.Text)
     bucketlist_id = db.Column(db.Integer, db.ForeignKey('bucketlists.id'))
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
     date_modified = db.Column(db.DateTime, default=db.func.current_timestamp())
     done = db.Column(db.Boolean, default=False)
+
+
+class UserSchema(Schema):
+    '''UserSchema for data serialization using marshmallow'''
+    id = fields.Int(dump_only=True)
+    username = fields.Str()
+    formatted_name = fields.Method("format_name", dump_only=True)
+
+    def format_name(self, user):
+        return "{}".format(user.username)
+
+
+def must_not_be_blank(data):
+    if not data:
+        raise ValidationError('Data not provided.')
+
+
+class BucketlistSchema(Schema):
+    id = fields.Int(dump_only=True)
+    name = fields.Str()
+    date_created = fields.DateTime(dump_only=True)
+    date_modified = fields.DateTime(dump_only=True)
+    done = fields.Boolean()
+
+
+user_schema = UserSchema()
+users_schema = UserSchema(many=True)
+bucketlist_schema = BucketlistSchema()
+bucketlists_schema = BucketlistSchema(many=True)

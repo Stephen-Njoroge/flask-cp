@@ -1,7 +1,10 @@
 #!flask/bin/python
-from flask import Flask, jsonify, make_response, request,  abort, g, url_for
+from flask import Flask, jsonify, make_response, request, abort, g, url_for
 from flask_httpauth import HTTPBasicAuth
-from models import db, User
+from models import (
+                     db, User, Bucketlist, Item, user_schema, users_schema, 
+                     bucketlist_schema, bucketlists_schema)
+from datetime import datetime
 
 # initialization
 app = Flask(__name__)
@@ -62,63 +65,64 @@ def get_resource():
     return jsonify({'Greetings': 'Hello, %s!' % g.user.username})
 
 
-bucketlists = [{
-    'id': 1,
-    'name': "BucketList1",
-    'items': [{
-        'id': 1,
-        'name': "I need to do X",
-        'date_created': "2015-08-12 11:57:23",
-        'date_modified': "2015-08-12 11:57:23",
-        'done': False
-    }],
-    'date_created': "2015-08-12 11:57:23",
-    'date_modified': "2015-08-12 11:57:23",
-    'created_by': "1113456"
-},
-    {
-    'id': 2,
-    'name': "BucketList2",
-    'items': [{
-        'id': 1,
-        'name': "I need to do pee",
-        'date_created': "2015-08-12 11:57:23",
-        'date_modified': "2015-08-12 11:57:23",
-        'done': False
-    }],
-    'date_created': "2015-08-12 11:57:23",
-    'date_modified': "2015-08-12 11:57:23",
-    'created_by': "1113456"
-}]
+# bucketlists = [{
+#     'id': 1,
+#     'name': "BucketList1",
+#     'items': [{
+#         'id': 1,
+#         'name': "I need to do X",
+#         'date_created': "2015-08-12 11:57:23",
+#         'date_modified': "2015-08-12 11:57:23",
+#         'done': False
+#     }],
+#     'date_created': "2015-08-12 11:57:23",
+#     'date_modified': "2015-08-12 11:57:23",
+#     'created_by': "1113456"
+# },
+#     {
+#     'id': 2,
+#     'name': "BucketList2",
+#     'items': [{
+#         'id': 1,
+#         'name': "I need to do pee",
+#         'date_created': "2015-08-12 11:57:23",
+#         'date_modified': "2015-08-12 11:57:23",
+#         'done': False
+#     }],
+#     'date_created': "2015-08-12 11:57:23",
+#     'date_modified': "2015-08-12 11:57:23",
+#     'created_by': "1113456"
+# }]
 
 
 @app.route('/bucketlists/', methods=['POST'])
+@auth.login_required
 def create_bucketlist():
     '''A method to create a new bucketlist'''
     if not request.json or not 'name' in request.json:
                 abort(400)
-    bucketlist = {
-        'id': bucketlists[-1]['id'] + 1,
-        'name': request.json['name'],
-        'items': request.json.get('items', [{
-            'id': 1,
-            'name': request.json.get('item_name', ""),
-            'date_created': request.json.get('item_date_created', ""),
-            'date_modified': request.json.get('item_date_modified', ""),
-            'done': False
-        }]),
-        'date_created': request.json.get('date_created', ""),
-        'date_modified': request.json.get('date_modified', ""),
-        'created_by': request.json.get('created_by', "")
-    }
-    bucketlists.append(bucketlist)
-    return jsonify({'bucketlist': bucketlist}), 201
+    bucketlist_name = request.json.get('name')
+    user_id = g.user.id
+    date_created = datetime.utcnow()
+    date_modified = datetime.utcnow()
+    bucketlist = Bucketlist(name=bucketlist_name,
+                            date_created=date_created,
+                            date_modified=date_modified, user_id=user_id)
+    db.session.add(bucketlist)
+    db.session.commit()
+    return jsonify({'bucketlist': bucketlist.name}), 201, {
+        'Location': url_for(
+            'get_bucketlist', bucketlist_id=bucketlist.id, _external=True)}
 
 
 @app.route('/bucketlists/', methods=['GET'])
+@auth.login_required
 def get_bucketlists():
     '''A Method to get all bucket lists'''
-    return jsonify({'bucketlists': bucketlists})
+    user_id = g.user.id
+    bucketlists = Bucketlist.query.filter_by(user_id=user_id)
+    result = bucketlists_schema.dump(bucketlists)
+    return jsonify({'bucketlists': result.data})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['GET'])
@@ -214,13 +218,13 @@ def create_bucketlist_item(bucketlist_id):
 def update_bucketlist_item(bucketlist_id, item_id):
     '''A method to update bucketlist items
         args:
-            bucketlist_id The bucketlist containing the item to edit. 
+            bucketlist_id The bucketlist containing the item to edit.
             item_id The item to update in the bucketlist
     '''
     bucketlist = [
         bucketlist for bucketlist in bucketlists if
         bucketlist['id'] == bucketlist_id]
-    bucketlist_item = bucketlist[0]['items'][item_id-1]
+    bucketlist_item = bucketlist[0]['items'][item_id - 1]
     if len(bucketlist_item) == 0:
         abort(404)
     if not request.json:
