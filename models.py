@@ -61,7 +61,7 @@ class Bucketlist(db.Model):
     date_modified = db.Column(db.DateTime, default=db.func.current_timestamp())
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
-    user = db.relationship("User", backref=db.backref("users", lazy="dynamic"))
+    created_by = db.relationship("User", backref=db.backref("users", lazy="dynamic"))
     items = db.relationship("Item", backref=db.backref("bucketlists"))
 
     def as_dict(self):
@@ -83,10 +83,6 @@ class UserSchema(Schema):
     '''UserSchema for data serialization using marshmallow'''
     id = fields.Int(dump_only=True)
     username = fields.Str()
-    formatted_name = fields.Method("format_name", dump_only=True)
-
-    def format_name(self, user):
-        return "{}".format(user.username)
 
 
 def must_not_be_blank(data):
@@ -94,7 +90,8 @@ def must_not_be_blank(data):
         raise ValidationError('Data not provided.')
 
 
-class BucketlistSchema(Schema):
+class ItemSchema(Schema):
+    '''ItemSchema for data serialization using marshmallow'''
     id = fields.Int(dump_only=True)
     name = fields.Str()
     date_created = fields.DateTime(dump_only=True)
@@ -102,7 +99,19 @@ class BucketlistSchema(Schema):
     done = fields.Boolean()
 
 
+class BucketlistSchema(Schema):
+    '''BucketlistSchema for data serialization using marshmallow'''
+    id = fields.Int(dump_only=True)
+    name = fields.Str()
+    date_created = fields.DateTime(dump_only=True)
+    date_modified = fields.DateTime(dump_only=True)
+    created_by = fields.Nested(UserSchema, only=('username'))
+    items = fields.Nested(ItemSchema, many=True)
+
+
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 bucketlist_schema = BucketlistSchema()
 bucketlists_schema = BucketlistSchema(many=True)
+item_schema = ItemSchema()
+items_schema = ItemSchema(many=True)

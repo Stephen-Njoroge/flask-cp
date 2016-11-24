@@ -62,37 +62,8 @@ def verify_password(username_or_token, password):
 @app.route('/auth/dashboard')
 @auth.login_required
 def get_resource():
+    '''Silly me testing whether authentication is working'''
     return jsonify({'Greetings': 'Hello, %s!' % g.user.username})
-
-
-# bucketlists = [{
-#     'id': 1,
-#     'name': "BucketList1",
-#     'items': [{
-#         'id': 1,
-#         'name': "I need to do X",
-#         'date_created': "2015-08-12 11:57:23",
-#         'date_modified': "2015-08-12 11:57:23",
-#         'done': False
-#     }],
-#     'date_created': "2015-08-12 11:57:23",
-#     'date_modified': "2015-08-12 11:57:23",
-#     'created_by': "1113456"
-# },
-#     {
-#     'id': 2,
-#     'name': "BucketList2",
-#     'items': [{
-#         'id': 1,
-#         'name': "I need to do pee",
-#         'date_created': "2015-08-12 11:57:23",
-#         'date_modified': "2015-08-12 11:57:23",
-#         'done': False
-#     }],
-#     'date_created': "2015-08-12 11:57:23",
-#     'date_modified': "2015-08-12 11:57:23",
-#     'created_by': "1113456"
-# }]
 
 
 @app.route('/bucketlists/', methods=['POST'])
@@ -126,17 +97,18 @@ def get_bucketlists():
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['GET'])
+@auth.login_required
 def get_bucketlist(bucketlist_id):
     '''A method to get one bucket list
         args:
         bucketlist_id The id of the bucketlist to get.
     '''
-    bucketlist = [
-        bucketlist for bucketlist in bucketlists if
-        bucketlist['id'] == bucketlist_id]
-    if len(bucketlist) == 0:
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=g.user.id)
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
                 abort(404)
-    return jsonify({'bucketlist': bucketlist[0]})
+    return jsonify({'bucketlist': result.data})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['PUT'])
