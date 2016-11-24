@@ -38,7 +38,7 @@ def get_auth_token():
     password = request.json.get('password')
     user = User.query.filter_by(username=username).first()
     if not user or not user.verify_password(password):
-        return jsonify({'Stop': 'Register To Use Service!'})
+        return jsonify({'Stop': 'Register To Use Service!'}), 401
     else:
         g.user = user
         token = g.user.generate_auth_token()
