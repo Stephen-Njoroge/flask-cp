@@ -1,16 +1,53 @@
-#!flask/bin/python
+from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer,
+                          BadSignature, SignatureExpired)
 from flask import Flask, jsonify, make_response, request, abort, g, url_for
-from flask_httpauth import HTTPBasicAuth
-from models import (db, User, Bucketlist, Item, bucketlists_schema,
-                    items_schema)
+from flask_httpauth import HTTPTokenAuth
 from datetime import datetime
+from models import (User, Bucketlist, Item, bucketlists_schema,
+                    items_schema, db)
 
-# initialization
-app = Flask(__name__)
 db.create_all()  # create necessary tables
+app = Flask(__name__)
+auth = HTTPTokenAuth(scheme='Token')
+app.config['SECRET_KEY'] = 'the quick brown fox jumps over the lazy dog'
 
-# extensions
-auth = HTTPBasicAuth()
+
+current_user = {
+    'user_id': None
+}
+
+
+@auth.verify_token
+def verify_auth_token(token):
+    s = Serializer(app.config['SECRET_KEY'])
+    try:
+        data = s.loads(token)
+    except SignatureExpired:
+        # The token is valid but has expired
+        return None
+    except BadSignature:
+        # The token is invalid
+        return None
+    user_id = data['id']
+    current_user['user_id'] = user_id
+    return user_id
+
+
+@app.errorhandler(404)
+def ivalid_url(error):
+    return jsonify({'message': 'You entered an invalid URL'})
+
+
+@app.errorhandler(401)
+def token_expired_or_invalid(error):
+    return jsonify({'message': 'Token Expired/Invalid'})
+
+
+def verify_password(username, password):
+    user = db.session.query(User).filter_by(username=username).first()
+    if not user or not user.verify_password(password):
+        return False
+    return user
 
 
 @app.route('/auth/register', methods=['POST'])
@@ -22,8 +59,8 @@ def new_user():
         abort(400)  # missing arguments
     if User.query.filter_by(username=username).first() is not None:
         abort(400)  # existing user
-    user = User(username=username)
-    user.hash_password(password)
+    user = User(username=str(username))
+    user.hash_password(str(password))
     db.session.add(user)
     db.session.commit()
     return jsonify({'username': user.username}), 201, {
@@ -35,27 +72,13 @@ def get_auth_token():
     '''Method to create a token for a user'''
     username = request.json.get('username')
     password = request.json.get('password')
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(username=str(username)).first()
     if not user or not user.verify_password(password):
         return jsonify({'Stop': 'Register To Use Service!'}), 401
     else:
         g.user = user
         token = g.user.generate_auth_token()
-        return jsonify({'token': token.decode('ascii')})
-
-
-@auth.verify_password
-def verify_password(username_or_token, password):
-    '''To verify a user is registered'''
-    # first try to authenticate by token
-    user = User.verify_auth_token(username_or_token)
-    if not user:
-        # try to authenticate with username/password
-        user = User.query.filter_by(username=username_or_token).first()
-        if not user or not user.verify_password(password):
-            return False
-    g.user = user
-    return True
+        return jsonify({'token': 'Token ' + token.decode('ascii')})
 
 
 @app.route('/auth/dashboard')
@@ -72,7 +95,9 @@ def create_bucketlist():
     if not request.json or not 'name' in request.json:
                 abort(400)
     bucketlist_name = request.json.get('name')
-    user_id = g.user.id
+    if not bucketlist_name:
+        abort(400)
+    user_id = current_user['user_id']
     date_created = datetime.utcnow()
     date_modified = datetime.utcnow()
     bucketlist = Bucketlist(name=bucketlist_name,
@@ -89,9 +114,12 @@ def create_bucketlist():
 @auth.login_required
 def get_bucketlists():
     '''A Method to get all bucket lists'''
-    user_id = g.user.id
+    user_id = current_user['user_id']
+    # user_id = g.user.id
     bucketlists = Bucketlist.query.filter_by(user_id=user_id)
     result = bucketlists_schema.dump(bucketlists)
+    if len(result[0]) == 0:
+                abort(404)
     return jsonify({'bucketlists': result.data})
 
 
@@ -103,7 +131,7 @@ def get_bucketlist(bucketlist_id):
         bucketlist_id The id of the bucketlist to get.
     '''
     bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)
+        id=bucketlist_id, user_id=current_user['user_id'])
     result = bucketlists_schema.dump(bucketlist)
     if len(result[0]) == 0:
                 abort(404)
@@ -117,23 +145,26 @@ def update_bucketlist(bucketlist_id):
         args:
             bucketlist_id The id of the bucketlist to update.
     '''
+
+    user_id = current_user['user_id']
     bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)
+        id=bucketlist_id, user_id=user_id)
     result = bucketlists_schema.dump(bucketlist)
     if len(result[0]) == 0:
-                abort(404)  # Abort incase bucketlist does not exist.
+        abort(404)  # Abort incase bucketlist does not exist.
     if not request.json:
         abort(400)  # If a user sends anything other than Json
-    if 'name' in request.json and type(request.json['name']) != str:
-        abort(400)  # Abort incase user does not send a new name for item.
-    name = request.json.get('name')
+
+    name = request.json.get('name', None)
+    if not name:
+        abort(400)  # Abort incase user does not send a new name for bucket.
     date_modified = datetime.utcnow()
-    bucketlistnew = {"name": name, "date_modified": date_modified}
+    bucketlistnew = {"name": str(name), "date_modified": date_modified}
     bucketlist.update(bucketlistnew)
     db.session.commit()
 
     updated_bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)  # Get the updated bucketlist
+        id=bucketlist_id, user_id=user_id)  # Get the updated bucketlist
     new_result = bucketlists_schema.dump(updated_bucketlist)
 
     return jsonify({'bucketlist': new_result.data})
@@ -147,13 +178,13 @@ def delete_bucketlist(bucketlist_id):
             bucketlist_id The id of the bucketlist to delete.
     '''
     bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)
+        id=bucketlist_id, user_id=current_user['user_id'])
     result = bucketlists_schema.dump(bucketlist)
     if len(result[0]) == 0:
                 abort(404)  # Abort incase bucketlist does not exist.
     bucketlist.delete()
     db.session.commit()
-    return jsonify({'result': True})
+    return jsonify({'Success!': 'Bucketlist Deleted'})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/', methods=['POST'])
@@ -168,7 +199,7 @@ def create_bucketlist_item(bucketlist_id):
                 abort(400)  # No name provided in the request
 
     bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)
+        id=bucketlist_id, user_id=current_user['user_id'])
     result = bucketlists_schema.dump(bucketlist)
     if len(result[0]) == 0:
                 abort(404)  # For a non existent bucketlist
@@ -184,7 +215,7 @@ def create_bucketlist_item(bucketlist_id):
     db.session.commit()
 
     updated_bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)
+        id=bucketlist_id, user_id=current_user['user_id'])
     result = bucketlists_schema.dump(updated_bucketlist)
     if len(result[0]) == 0:
                 abort(404)  # Non-existent bucketlist
@@ -206,20 +237,21 @@ def update_bucketlist_item(bucketlist_id, item_id):
                 abort(404)  # Abort incase bucketlist does not exist.
     if not request.json:
         abort(400)  # If a user sends anything other than Json
-    if 'name' in request.json and type(request.json['name']) != str:
-        abort(400)  # Abort incase user does not send a valid name for item.
     if 'done' in request.json and type(request.json['done']) is not bool:
         abort(400)  # Abort incase user does not send a valid bolean for done
 
-    name = request.json.get('name')
+    name = request.json.get('name', None)
+    if not name:
+        abort(400)  # Abort incase user does not send a new name for item.
     done = request.json.get('done')
     date_modified = datetime.utcnow()
-    updateditem = {"name": name, "date_modified": date_modified, "done": done}
+    updateditem = {
+        "name": str(name), "date_modified": date_modified, "done": done}
     item.update(updateditem)
     db.session.commit()
 
     updated_bucketlist = Bucketlist.query.filter_by(
-        id=bucketlist_id, user_id=g.user.id)  # Get the updated bucketlist
+        id=bucketlist_id, user_id=current_user['user_id'])
     new_result = bucketlists_schema.dump(updated_bucketlist)
     return jsonify({'bucketlist': new_result.data})
 
@@ -240,7 +272,7 @@ def delete_bucketlist_item(bucketlist_id, item_id):
     item.delete()
     db.session.commit()
 
-    return jsonify({'result': True})
+    return jsonify({'Success!': 'Item deleted'})
 
 
 @app.errorhandler(404)

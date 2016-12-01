@@ -1,21 +1,14 @@
-#!flask/bin/python
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from passlib.apps import custom_app_context as pwd_context
-from itsdangerous import (TimedJSONWebSignatureSerializer
-                          as Serializer, BadSignature, SignatureExpired)
-from sqlalchemy.exc import IntegrityError
-from marshmallow import Schema, fields, ValidationError, pre_load
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from marshmallow import Schema, fields, ValidationError
+from flask_sqlalchemy import SQLAlchemy
 
-# initialization
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'the quick brown fox jumps over the lazy dog'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
-app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-
-# extensions
 db = SQLAlchemy(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+SECRET_KEY = 'the quick brown fox jumps over the lazy dog'
 
 
 class User(db.Model):
@@ -36,20 +29,8 @@ class User(db.Model):
         return pwd_context.verify(password, self.password_hash)
 
     def generate_auth_token(self, expiration=600):
-        s = Serializer(app.config['SECRET_KEY'], expires_in=expiration)
+        s = Serializer(SECRET_KEY, expires_in=expiration)
         return s.dumps({'id': self.id})
-
-    @staticmethod
-    def verify_auth_token(token):
-        s = Serializer(app.config['SECRET_KEY'])
-        try:
-            data = s.loads(token)
-        except SignatureExpired:
-            return None  # valid token, but expired
-        except BadSignature:
-            return None  # invalid token
-        user = User.query.get(data['id'])
-        return user
 
 
 class Bucketlist(db.Model):
@@ -61,7 +42,8 @@ class Bucketlist(db.Model):
     date_modified = db.Column(db.DateTime, default=db.func.current_timestamp())
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
-    created_by = db.relationship("User", backref=db.backref("users", lazy="dynamic"))
+    created_by = db.relationship(
+        "User", backref=db.backref("users", lazy="dynamic"))
     items = db.relationship("Item", backref=db.backref("bucketlists"))
 
     def as_dict(self):
