@@ -63,7 +63,7 @@ def new_user():
     user.hash_password(str(password))
     db.session.add(user)
     db.session.commit()
-    return jsonify({'username': user.username}), 201, {
+    return jsonify({'Hello': user.username}), 201, {
         'Location': url_for('new_user', id=user.id, _external=True)}
 
 
@@ -205,6 +205,8 @@ def create_bucketlist_item(bucketlist_id):
                 abort(404)  # For a non existent bucketlist
 
     item_name = request.json.get('name')
+    if not item_name:
+        abort(400)
     bucketlist_id = bucketlist_id
     date_created = datetime.utcnow()
     date_modified = datetime.utcnow()
@@ -219,7 +221,7 @@ def create_bucketlist_item(bucketlist_id):
     result = bucketlists_schema.dump(updated_bucketlist)
     if len(result[0]) == 0:
                 abort(404)  # Non-existent bucketlist
-    return jsonify({'bucketlist': result.data})
+    return jsonify({'bucketlist': result.data}), 201
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/<int:item_id>', methods=['PUT'])
@@ -230,6 +232,12 @@ def update_bucketlist_item(bucketlist_id, item_id):
             bucketlist_id The bucketlist containing the item to edit.
             item_id The item to update in the bucketlist
     '''
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=current_user['user_id'])
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
+                abort(404)
+
     item = Item.query.filter_by(
         id=item_id, bucketlist_id=bucketlist_id)
     result = items_schema.dump(item)
@@ -253,7 +261,7 @@ def update_bucketlist_item(bucketlist_id, item_id):
     updated_bucketlist = Bucketlist.query.filter_by(
         id=bucketlist_id, user_id=current_user['user_id'])
     new_result = bucketlists_schema.dump(updated_bucketlist)
-    return jsonify({'bucketlist': new_result.data})
+    return jsonify({'bucketlist': new_result.data}), 201
 
 
 @app.route('/bucketlists/<int:bucketlist_id>/items/<int:item_id>', methods=['DELETE'])
@@ -264,6 +272,12 @@ def delete_bucketlist_item(bucketlist_id, item_id):
             bucketlist_id The id of bucketlist containing item to delete.
             item_id The id of the item to delete.
     '''
+    bucketlist = Bucketlist.query.filter_by(
+        id=bucketlist_id, user_id=current_user['user_id'])
+    result = bucketlists_schema.dump(bucketlist)
+    if len(result[0]) == 0:
+                abort(404)
+
     item = Item.query.filter_by(
         id=item_id, bucketlist_id=bucketlist_id)
     result = items_schema.dump(item)
