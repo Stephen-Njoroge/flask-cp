@@ -45,7 +45,7 @@ A flask bucket list app
  * On the terminal type `python app/app.py` to start the application
 9. To run Tests.
  * `nosetests --with coverage`
-10. License
+ 
 	Copyright 2016 Stephen Njoroge
     
     Licensed under the Apache License, Version 2.0 (the "License");
