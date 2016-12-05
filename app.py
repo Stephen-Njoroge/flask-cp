@@ -1,15 +1,26 @@
+import os
+from datetime import datetime
+
+from flask_httpauth import HTTPTokenAuth
+from flask import Flask, jsonify, make_response, request, abort, g, url_for
 from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer,
                           BadSignature, SignatureExpired)
-from flask import Flask, jsonify, make_response, request, abort, g, url_for
-from flask_httpauth import HTTPTokenAuth
-from datetime import datetime
+
 from models import (User, Bucketlist, Item, bucketlists_schema,
                     items_schema, db)
 
-db.create_all()  # create necessary tables
+
 app = Flask(__name__)
 auth = HTTPTokenAuth(scheme='Token')
-app.config['SECRET_KEY'] = 'the quick brown fox jumps over the lazy dog'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+SECRET_KEY = os.environ["SECRET_KEY"]
+app.config['SECRET_KEY'] = SECRET_KEY
+
+db.init_app(app)
+app.app_context().push()
+
+db.create_all()  # create necessary tables
 
 
 current_user = {
@@ -31,16 +42,6 @@ def verify_auth_token(token):
     user_id = data['id']
     current_user['user_id'] = user_id
     return user_id
-
-
-@app.errorhandler(404)
-def ivalid_url(error):
-    return jsonify({'message': 'You entered an invalid URL'})
-
-
-@app.errorhandler(401)
-def token_expired_or_invalid(error):
-    return jsonify({'message': 'Token Expired/Invalid'})
 
 
 def verify_password(username, password):
@@ -74,11 +75,12 @@ def get_auth_token():
     password = request.json.get('password')
     user = User.query.filter_by(username=str(username)).first()
     if not user or not user.verify_password(password):
-        return jsonify({'Stop': 'Register To Use Service!'}), 401
+        return jsonify({'Error': 'Register To Use Service!'}), 401
     else:
         g.user = user
-        token = g.user.generate_auth_token()
-        return jsonify({'token': 'Token ' + token.decode('ascii')})
+        token = g.user.generate_auth_token(SECRET_KEY=app.config['SECRET_KEY'])
+        return jsonify(
+            {'Greetings': username, 'token': 'Token ' + token.decode('ascii')})
 
 
 @app.route('/auth/dashboard')
@@ -115,12 +117,66 @@ def create_bucketlist():
 def get_bucketlists():
     '''A Method to get all bucket lists'''
     user_id = current_user['user_id']
-    # user_id = g.user.id
-    bucketlists = Bucketlist.query.filter_by(user_id=user_id)
-    result = bucketlists_schema.dump(bucketlists)
-    if len(result[0]) == 0:
-                abort(404)
-    return jsonify({'bucketlists': result.data})
+    user = current_user
+    try:
+        page = int(request.args.get('page', 1))
+    except Exception:
+        return jsonify({'message': 'Invalid Page Value'})
+    try:
+        limit = int(request.args.get('limit', 20))
+    except Exception:
+        return jsonify({'message': 'Invalid Limit Value'})
+    search = request.args.get('q', '')
+
+    if db.session.query(Bucketlist).filter_by(user_id=user_id).count() == 0:
+        return jsonify({'message': 'no bucketlist found'})
+
+    bucketlist_rows = Bucketlist.query.filter(
+        Bucketlist.user_id == user_id,
+        Bucketlist.name.like('%' + search + '%')).paginate(page, limit, False)
+
+    all_pages = bucketlist_rows.pages
+    next_page = bucketlist_rows.has_next
+    previous_page = bucketlist_rows.has_prev
+
+    if next_page:
+        next_page_url = str(request.url_root) + 'bucketlists?' + \
+            'limit=' + str(limit) + '&page=' + str(page + 1)
+    else:
+        next_page_url = None
+
+    if previous_page:
+        previous_page_url = str(request.url_root) + 'bucketlists?' + \
+            'limit=' + str(limit) + '&page=' + str(page - 1)
+    else:
+        previous_page_url = None
+
+    bucketlists = []
+    for bucketlist in bucketlist_rows.items:
+        bucketlistitems = []
+        bucketlistitem_rows = Item.query.filter(
+            Item.bucketlist_id == bucketlist.id).all()
+        for bucketlistitem in bucketlistitem_rows:
+            bucketlistitems.append({
+                'id': bucketlistitem.id,
+                'name': bucketlistitem.name,
+                'date_created': bucketlistitem.date_created,
+                'date_modified': bucketlistitem.date_modified,
+                'done': bucketlistitem.done
+            })
+        bucketlists.append({
+            'id': bucketlist.id,
+            'name': bucketlist.name,
+            'date_created': bucketlist.date_created,
+            'date_modified': bucketlist.date_modified,
+            'created_by': bucketlist.created_by.username,
+            'items': bucketlistitems,
+            'total_pages': all_pages,
+            'next_page': next_page_url,
+            'previous_page': previous_page_url
+        })
+
+    return jsonify({'bucketlists': bucketlists})
 
 
 @app.route('/bucketlists/<int:bucketlist_id>', methods=['GET'])
@@ -293,6 +349,12 @@ def delete_bucketlist_item(bucketlist_id, item_id):
 def not_found(error):
     '''Return Error as a Json File'''
     return make_response(jsonify({'error': 'Not found'}), 404)
+
+
+@app.errorhandler(401)
+def token_expired_or_invalid(error):
+    '''Error as json'''
+    return make_response(jsonify({'message': 'Token Expired/Invalid'}), 401)
 
 
 if __name__ == '__main__':
