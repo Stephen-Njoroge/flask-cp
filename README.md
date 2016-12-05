@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/Stephen-Njoroge/flask-cp/badge.svg?branch=master)](https://coveralls.io/github/Stephen-Njoroge/flask-cp?branch=master)
+[![Build Status](https://travis-ci.org/Stephen-Njoroge/flask-cp.svg?branch=master)](https://travis-ci.org/Stephen-Njoroge/flask-cp)
 # flask-cp
 A flask bucket list app 
 
