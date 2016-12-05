@@ -48,7 +48,7 @@ A flask bucket list app
 
  ##Copyright 
 
-	copyright_symbol="" 2016 Stephen Njoroge
+	&copy; 2016 Stephen Njoroge
     
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
