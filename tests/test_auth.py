@@ -57,7 +57,7 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(dict(json.loads(response.get_data())),
-                         {'Stop': 'Register To Use Service!'})
+                         {'Error': 'Register To Use Service!'})
         self.assertEqual(response.status_code, 401)
 
     def test_login_without_username(self):
@@ -66,7 +66,7 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(dict(json.loads(response.get_data())),
-                         {'Stop': 'Register To Use Service!'})
+                         {'Error': 'Register To Use Service!'})
         self.assertEqual(response.status_code, 401)
 
     def test_login_without_password(self):
@@ -75,7 +75,7 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(dict(json.loads(response.get_data())),
-                         {'Stop': 'Register To Use Service!'})
+                         {'Error': 'Register To Use Service!'})
         self.assertEqual(response.status_code, 401)
 
     def test_login_with_invalid_username(self):
@@ -84,7 +84,7 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(dict(json.loads(response.get_data())),
-                         {'Stop': 'Register To Use Service!'})
+                         {'Error': 'Register To Use Service!'})
         self.assertEqual(response.status_code, 401)
 
     def test_login_with_invalid_password(self):
@@ -93,7 +93,7 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(dict(json.loads(response.get_data())),
-                         {'Stop': 'Register To Use Service!'})
+                         {'Error': 'Register To Use Service!'})
         self.assertEqual(response.status_code, 401)
 
     def test_successful_user_login(self):
@@ -109,6 +109,8 @@ class TestAuthLogin(TestSetup):
                                  data=json.dumps(credentials),
                                  content_type='application/json')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(str(json.loads(response.get_data())['Greetings']),
+                         'user')
 
     def test_invalid_token(self):
         self.headers['Authorization'] = "Token abracadabra"
