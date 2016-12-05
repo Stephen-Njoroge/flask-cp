@@ -19,8 +19,9 @@ app.config['SECRET_KEY'] = SECRET_KEY
 
 db.init_app(app)
 app.app_context().push()
-
 db.create_all()  # create necessary tables
+
+
 
 
 current_user = {
@@ -117,7 +118,6 @@ def create_bucketlist():
 def get_bucketlists():
     '''A Method to get all bucket lists'''
     user_id = current_user['user_id']
-    user = current_user
     try:
         page = int(request.args.get('page', 1))
     except Exception:
