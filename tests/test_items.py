@@ -180,7 +180,6 @@ class TestBucketListItemDelete(TestSetup):
                                    headers=self.headers)
         self.assertEqual(response.status_code, 404)
 
-    # @unittest.skip("Fail")
     def test_successful_item_deletion(self):
         bucketlist_data = {
             'name': 'Test Bucket List'

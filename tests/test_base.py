@@ -10,7 +10,7 @@ class TestSetup(unittest.TestCase):
         '''Create a flask test client'''
 
         app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tests.sqlite'
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
         self.app = app.test_client()
         db.create_all()

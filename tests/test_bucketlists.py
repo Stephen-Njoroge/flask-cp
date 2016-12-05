@@ -81,23 +81,17 @@ class TestBucketListsGet(TestSetup):
         response = self.app.get('/bucketlists/',
                                 content_type='application/json',
                                 headers=self.headers)
-        self.assertEqual(response.status_code, 404)
-
-    def test_invalid_limit_value_in_get_url(self):
-        response = self.app.get('/bucketlists?limit=sdnkfs',
-                                content_type='application/json',
-                                headers=self.headers)
         self.assertEqual(str(json.loads(response.get_data())['message']),
-                         'Invalid Limit Value')
+                         'no bucketlist found')
 
     # Endpoint: /bucketlists/<int:bucketlist_id> -> GET
     def test_get_with_invalid_url(self):
-        response = self.app.get('/bucketlists/nkjn',
+        response = self.app.get('/bucketlists/nada',
                                 content_type='application/json',
                                 headers=self.headers)
         self.assertEqual(response.status_code, 404)
 
-    def test_get_bucketlist_with_inexistent_bucketlist_id(self):
+    def test_get_bucketlist_with_nonexistent_bucketlist_id(self):
         response = self.app.get('/bucketlists/1000',
                                 content_type='application/json',
                                 headers=self.headers)
@@ -115,6 +109,33 @@ class TestBucketListsGet(TestSetup):
         self.assertEqual(str(json.loads(
             response.get_data())['bucketlist']),
             'Steve Test')
+
+
+# Endpoint: /bucketlists/<int:bucketlist_id> -> DELETE
+class TestBucketListDelete(TestSetup):
+
+    def test_delete_nonexistent_bucketlist(self):
+        response = self.app.delete('/bucketlists/1',
+                                   content_type='application/json',
+                                   headers=self.headers)
+        self.assertEqual(dict(json.loads(response.get_data())),
+                         {'error': 'Not found'})
+
+    def test_delete_bucketlist_correctly(self):
+        bucketlist_data = {
+            'name': 'Test Bucket List'
+        }
+        response = self.app.post('/bucketlists/',
+                                 data=json.dumps(bucketlist_data),
+                                 content_type='application/json',
+                                 headers=self.headers)
+
+        response = self.app.delete('/bucketlists/1',
+                                   data=json.dumps(bucketlist_data),
+                                   content_type='applicaiton/json',
+                                   headers=self.headers)
+        self.assertEqual(dict(json.loads(response.get_data())),
+                         {'Success!': 'Bucketlist Deleted'})
 
 
 if __name__ == '__main__':

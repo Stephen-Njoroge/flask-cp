@@ -1,14 +1,9 @@
-from flask import Flask
-from passlib.apps import custom_app_context as pwd_context
+from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from marshmallow import Schema, fields, ValidationError
-from flask_sqlalchemy import SQLAlchemy
+from passlib.apps import custom_app_context as pwd_context
 
-app = Flask(__name__)
-db = SQLAlchemy(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-SECRET_KEY = 'the quick brown fox jumps over the lazy dog'
+db = SQLAlchemy()
 
 
 class User(db.Model):
@@ -28,7 +23,7 @@ class User(db.Model):
         '''To verify a password'''
         return pwd_context.verify(password, self.password_hash)
 
-    def generate_auth_token(self, expiration=600):
+    def generate_auth_token(self, SECRET_KEY, expiration=600):
         s = Serializer(SECRET_KEY, expires_in=expiration)
         return s.dumps({'id': self.id})
 
@@ -43,8 +38,12 @@ class Bucketlist(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     created_by = db.relationship(
-        "User", backref=db.backref("users", lazy="dynamic"))
+        "User", backref=db.backref("users.username", lazy="dynamic"))
     items = db.relationship("Item", backref=db.backref("bucketlists"))
+
+    def __repr__(self):
+        return "<Bucketlist(created_by='%s')>" % (
+            self.created_by)
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
