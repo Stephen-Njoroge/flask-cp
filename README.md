@@ -47,8 +47,8 @@ A flask bucket list app
  * `nosetests --with coverage`
 
  ##Copyright 
- 
-	2016 Stephen Njoroge
+
+	copyright_symbol="" 2016 Stephen Njoroge
     
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
