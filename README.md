@@ -1,6 +1,6 @@
-[![Coverage Status](https://coveralls.io/repos/github/Stephen-Njoroge/flask-cp/badge.svg?branch=master)](https://coveralls.io/github/Stephen-Njoroge/flask-cp?branch=master)
 [![Build Status](https://travis-ci.org/Stephen-Njoroge/flask-cp.svg?branch=master)](https://travis-ci.org/Stephen-Njoroge/flask-cp)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/6ca466caff99427fbfb9b51ae54e0a1c)](https://www.codacy.com/app/stephen-njoroge/flask-cp?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Stephen-Njoroge/flask-cp&amp;utm_campaign=Badge_Grade)
+[![Coverage Status](https://coveralls.io/repos/github/Stephen-Njoroge/flask-cp/badge.svg?branch=master)](https://coveralls.io/github/Stephen-Njoroge/flask-cp?branch=master)
 [![Crates.io](https://img.shields.io/crates/l/rustc-serialize.svg)](https://github.com/Stephen-Njoroge/flask-cp)
 # flask-cp
 A flask bucket list app 
