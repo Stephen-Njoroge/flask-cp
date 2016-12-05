@@ -19,8 +19,9 @@ app.config['SECRET_KEY'] = SECRET_KEY
 
 db.init_app(app)
 app.app_context().push()
-
 db.create_all()  # create necessary tables
+
+ 
 
 
 current_user = {
